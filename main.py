@@ -61,12 +61,14 @@ class Particle():
         
 
 class ParticleGradient(Particle):
-    def __init__(self, x, y, size, ttl, cStart, cEnd) -> None:
-        super().__init__(x, y, size, ttl)
-        self.startColor = Color(cStart)
-        self.endColor = Color(cEnd)
-        self.range = self.startColor.range_to(self.endColor, ttl * 60)
-        
+    def __init__(self, rocked, x_off, y_off, size, ttl, cStart, cEnd, width) -> None:
+        super().__init__(0, 0, size, ttl)
+        self.range = Color(cStart).range_to(Color(cEnd), ttl * 60)
+        new_off = random.randint(0, width) - width //2
+
+        x, y = rocked.rot_form_origin(x_off, y_off + new_off)
+        self.pos.y = y
+        self.pos.x = x
 
     def draw(self):
         self.color = next(self.range, False)
@@ -74,25 +76,27 @@ class ParticleGradient(Particle):
 
 
 class ParticleForce(Particle):
-    def __init__(self, rocked, x, y, size, ttl, color, force, arc) -> None:
-        super().__init__(x, y, size, ttl)
+    def __init__(self, rocked, x_off, y_off, size, ttl, color, force, arc) -> None:
+        super().__init__(0, 0, size, ttl)
         self.cone = random.randrange(0, arc) - arc//2
         self.color = Color(color)
         self.rocked = rocked
         self.force = force
         self.moving = 0
 
+        self.x_off = x_off
+        self.y_off = y_off
+
     def draw(self):
         rotation = math.radians(self.rocked.angle + self.cone)
+        x, y = self.rocked.rot_form_origin(self.x_off, self.y_off)
 
         self.moving += self.force
-        x, y = self.rocked.rot_form_origin(-25,0)
 
         self.pos.y = y - self.moving * math.sin(rotation)
         self.pos.x = x - self.moving * math.cos(rotation)
 
         super().place()
-
 
 
 
@@ -132,7 +136,7 @@ class Rocked:
     def update(self, delta_time):
         keys = pygame.key.get_pressed()
         if keys[pygame.K_w]:
-            self.thrust_effect("middle", smoke=True)
+            self.thrust_effect("middle")
             self.velocity = min(self.velocity + self.acceleration, self.max_velocity)
         elif (self.velocity > 0):
             self.velocity = self.velocity * math.pow((1 - self.brake_force), delta_time) 
@@ -140,10 +144,10 @@ class Rocked:
             self.velocity = 0
 
         if keys[pygame.K_a]:
-            self.smoke_effect("right")
+            self.thrust_effect("right")
             self.angle -= self.rotation_velocity
         if keys[pygame.K_d]:
-            self.smoke_effect("left")
+            self.thrust_effect("left")
             self.angle += self.rotation_velocity
 
         self.draw_rocked()
@@ -166,23 +170,19 @@ class Rocked:
 
         return (new_x1, new_y1)
 
-    def thrust_effect(self, direction, smoke=False):
-        smoke = self.rot_form_origin(-25, 0)
-        color = random_color("red", "yellow", 10)
-        ps.add_particle(ParticleForce(self, smoke[0], smoke[1], 4, .2, color, 4, 30))
-        
-        if (smoke):
-            self.smoke_effect(direction)
-
-    def smoke_effect(self, direction):
+    def thrust_effect(self, direction):
         if (direction == "left"):
-            smoke = self.rot_form_origin(-25, -31.4)
+            x, y, = -25, -31.4
         elif(direction == "right"):
-            smoke = self.rot_form_origin(-25, 31.4)
+            x, y = -25, 31.4
         elif(direction == "middle"):
-            smoke = self.rot_form_origin(-25, 0)
-        
-        ps.add_particle(ParticleGradient(smoke[0], smoke[1], 4, 1, "white", "black"))
+            x, y = -25, 0
+
+        color = random_color("red", "yellow", 10)
+
+        # new_x, new_y = self.rot_form_origin(x, y)
+        ps.add_particle(ParticleForce(self, x, y, 3, .1, color, 4, 30))
+        ps.add_particle(ParticleGradient(self, x - 20, y * 1.2, 4, 1, "white", "black", 15))
 
 
     def move(self):
