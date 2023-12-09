@@ -8,26 +8,6 @@ import math
 import time
 
 
-
-WIDTH = 1280
-HEIGHT = 720
-
-FPS = 60
-
-def img_scaler(img, factor):
-    size = round(img.get_width() * factor), round(img.get_height()* factor)
-    return pygame.transform.scale(img, size)
-
-pygame.init()
-SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
-clock = pygame.time.Clock()
-
-running = True
-delta_time = 0
-
-ROCKED_IMG = img_scaler(pygame.image.load("./spaceship.png"), .2)
-
-
 def random_color(startC, endC, amount):
     index = random.randint(0, amount - 1)
     range = list(Color(startC).range_to(Color(endC), amount))
@@ -36,6 +16,43 @@ def random_color(startC, endC, amount):
 def gradient_color(startC, endC, amount):
     range = list(Color(startC).range_to(Color(endC), amount))
     return [color.get_hex_l() for color in range]
+
+
+class Entity:
+    def __init__(self, x, y, width, height) -> None:
+        self.width = width
+        self.height = height
+        self.x = x
+        self.y = y
+        
+    def setPOS(self,x,y):
+        self.x = x
+        self.y = y
+
+class MainScreen:
+    def __init__(self, width, height, title) -> None:
+        self.width = width
+        self.height = height
+        self.title = title
+
+        self.screen = pygame.display.set_mode((width, height))
+
+    def img_scaler(self, img, factor):
+        size = round(img.get_width() * factor), round(img.get_height()* factor)
+        return pygame.transform.scale(img, size)
+    
+
+    def wrap_around(self, objects):
+        for object in objects:
+            if (object.x > self.width):
+                object.moveTO(-object.width, object.y)
+            if (object.y > self.height):
+                object.moveTO(object.x, -object.height)
+            if (object.x < -object.width - 10):
+                object.moveTO(self.width, object.y)
+            if (object.y < -object.height - 10):
+                object.moveTO(object.x, self.height)
+        
 
 
 class Particle():
@@ -53,7 +70,7 @@ class Particle():
 
     def place(self):
         if (self.is_active and self.color):
-            pygame.draw.circle(SCREEN, self.color, self.pos, self.size)
+            pygame.draw.circle(main.screen, self.color, self.pos, self.size)
 
         self.update()
 
@@ -61,7 +78,7 @@ class Particle():
         seconds = (pygame.time.get_ticks() - self.timer) / 1000
         if (seconds > self.ttl):
             self.is_active = False
-        
+
 
 class ParticleSmoke(Particle):
     def __init__(self, rocked, x_off, y_off, size, ttl, color_range, width) -> None:
@@ -80,6 +97,7 @@ class ParticleSmoke(Particle):
             self.gradient_count += 1
             self.color = self.color_range[self.gradient_count]
         super().place()
+
 
 
 class ParticleExhaust(Particle):
@@ -123,14 +141,14 @@ class ParticleSystem:
 
 
 
-class Rocked:
+class Rocked(Entity):
     def __init__(self, x, y, image, size, acceleration, rotation_velocity, max_velocity, brake_force) -> None:
         self.rotation_velocity = rotation_velocity;
         self.acceleration = acceleration
         self.max_velocity = max_velocity
         self.brake_force = brake_force
 
-        self.smokeRange = gradient_color("white", "black", 60)
+        self.smokeRange = gradient_color("white", "#181818", 60)
         self.exhaustRange = gradient_color("red", "yellow", 60)
 
         self.velocity = 0
@@ -142,6 +160,11 @@ class Rocked:
 
         self.rect = None
 
+        Entity.__init__(self, self.pos.x, self.pos.y, image.get_rect().w, image.get_rect().h)
+
+    def moveTO(self,x,y):
+        self.pos.x = x
+        self.pos.y = y
 
     def update(self, delta_time):
         keys = pygame.key.get_pressed()
@@ -200,17 +223,67 @@ class Rocked:
         self.pos.x += vertical
         self.pos.y += horizontal
 
+        self.setPOS(self.pos.x, self.pos.y)
+
     def draw_rocked(self):
         rotated_image = pygame.transform.rotate(self.image, -self.angle - 90)
         new_rect = rotated_image.get_rect(center=self.image.get_rect(topleft=(self.pos.x, self.pos.y)).center)
-        SCREEN.blit(rotated_image, new_rect.topleft)
+        main.screen.blit(rotated_image, new_rect.topleft)
+
+
+class Coin(Particle):
+    def __init__(self, x, y) -> None:
+    
+        self.x = x
+        self.y = y
+        self.color = "#ffdd33"
+        self.radius = 6
+
+    def draw(self):
+        pygame.draw.circle(main.screen, self.color, (self.x, self.y), self.radius)
 
 
 
-player = Rocked(WIDTH//2, HEIGHT//2, ROCKED_IMG, 40, .4, 4, 10, .9)
+class CoinSystem:
+    def __init__(self) -> None:
+        self.coins = []
+        self.spawn_coin()
+
+    def spawn_coin(self):
+        randX = random.randint(10, WIDTH - 10)
+        randY = random.randint(10, HEIGHT - 10)
+
+        self.coins.append(Coin(randX, randY))
+
+    def update(self, rocked):
+        for coin in self.coins:
+            if (math.sqrt(math.pow(rocked.x - coin.x, 2) + math.pow(rocked.y - coin.y, 2)) < coin.radius):
+                print("Coinnned")
+
+            coin.draw()
+
+
+
+WIDTH = 1280
+HEIGHT = 720
+FPS = 60
+
+pygame.init()
+
+main = MainScreen(WIDTH, HEIGHT, "Astro")
+
+clock = pygame.time.Clock()
+
+running = True
+delta_time = 0
+
+
+rocked_image = main.img_scaler(pygame.image.load("./spaceship.png"), .2)
+player = Rocked(WIDTH//2, HEIGHT//2, rocked_image, 40, .4, 4, 10, .9)
 
 
 ps = ParticleSystem()
+cs = CoinSystem()
 
 
 while running:
@@ -218,13 +291,17 @@ while running:
         if (event.type == pygame.QUIT):
             running = False
 
-    SCREEN.fill("black")
+    main.screen.fill("#181818")
     ps.update()
 
     player.update(delta_time)
 
+    main.wrap_around([player])
+
+    cs.update(player)
+
     pygame.display.flip()
     delta_time = clock.tick(FPS) / 1000
-    print(clock.get_fps())
+    # print(clock.get_fps())
 
 pygame.quit()
