@@ -1,11 +1,13 @@
 # https://www.youtube.com/watch?v=L3ktUWfAMPg&ab_channel=TechWithTim
-from threading import Thread
 from colour import Color
 
+import asyncio
 import random
 import pygame
 import math
 import time
+
+
 
 WIDTH = 1280
 HEIGHT = 720
@@ -31,6 +33,9 @@ def random_color(startC, endC, amount):
     range = list(Color(startC).range_to(Color(endC), amount))
     return range[index].get_hex_l()
 
+def gradient_color(startC, endC, amount):
+    range = list(Color(startC).range_to(Color(endC), amount))
+    return [color.get_hex_l() for color in range]
 
 
 class Particle():
@@ -46,11 +51,9 @@ class Particle():
         self.size = size
         self.ttl = ttl
 
-        self.color = Color("#000000")
-
     def place(self):
         if (self.is_active and self.color):
-            pygame.draw.circle(SCREEN, self.color.get_hex_l(), self.pos, self.size)
+            pygame.draw.circle(SCREEN, self.color, self.pos, self.size)
 
         self.update()
 
@@ -60,10 +63,12 @@ class Particle():
             self.is_active = False
         
 
-class ParticleGradient(Particle):
-    def __init__(self, rocked, x_off, y_off, size, ttl, cStart, cEnd, width) -> None:
+class ParticleSmoke(Particle):
+    def __init__(self, rocked, x_off, y_off, size, ttl, color_range, width) -> None:
         super().__init__(0, 0, size, ttl)
-        self.range = Color(cStart).range_to(Color(cEnd), ttl * 60)
+        self.color = color_range[0]
+        self.color_range = color_range
+        self.gradient_count = 0
         new_off = random.randint(0, width) - width //2
 
         x, y = rocked.rot_form_origin(x_off, y_off + new_off)
@@ -71,15 +76,17 @@ class ParticleGradient(Particle):
         self.pos.x = x
 
     def draw(self):
-        self.color = next(self.range, False)
+        if (self.gradient_count < len(self.color_range) - 1):
+            self.gradient_count += 1
+            self.color = self.color_range[self.gradient_count]
         super().place()
 
 
-class ParticleForce(Particle):
-    def __init__(self, rocked, x_off, y_off, size, ttl, color, force, arc) -> None:
+class ParticleExhaust(Particle):
+    def __init__(self, rocked, x_off, y_off, size, ttl, color_range, force, arc) -> None:
         super().__init__(0, 0, size, ttl)
+        self.color = color_range[random.randint(0, len(color_range) - 1)]
         self.cone = random.randrange(0, arc) - arc//2
-        self.color = Color(color)
         self.rocked = rocked
         self.force = force
         self.moving = 0
@@ -122,6 +129,9 @@ class Rocked:
         self.acceleration = acceleration
         self.max_velocity = max_velocity
         self.brake_force = brake_force
+
+        self.smokeRange = gradient_color("white", "black", 60)
+        self.exhaustRange = gradient_color("red", "yellow", 60)
 
         self.velocity = 0
         self.angle = -90
@@ -178,11 +188,8 @@ class Rocked:
         elif(direction == "middle"):
             x, y = -25, 0
 
-        color = random_color("red", "yellow", 10)
-
-        # new_x, new_y = self.rot_form_origin(x, y)
-        ps.add_particle(ParticleForce(self, x, y, 3, .1, color, 4, 30))
-        ps.add_particle(ParticleGradient(self, x - 20, y * 1.2, 4, 1, "white", "black", 15))
+        ps.add_particle(ParticleExhaust(self, x, y, 3, .1, self.exhaustRange, 4, 30))
+        ps.add_particle(ParticleSmoke(self, x - 20, y * 1.2, 4, 1, self.smokeRange, 15))
 
 
     def move(self):
@@ -199,7 +206,10 @@ class Rocked:
         SCREEN.blit(rotated_image, new_rect.topleft)
 
 
+
 player = Rocked(WIDTH//2, HEIGHT//2, ROCKED_IMG, 40, .4, 4, 10, .9)
+
+
 ps = ParticleSystem()
 
 
@@ -209,11 +219,12 @@ while running:
             running = False
 
     SCREEN.fill("black")
-
     ps.update()
+
     player.update(delta_time)
 
     pygame.display.flip()
     delta_time = clock.tick(FPS) / 1000
+    print(clock.get_fps())
 
 pygame.quit()
