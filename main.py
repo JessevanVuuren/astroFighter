@@ -30,16 +30,21 @@ class Entity:
         self.y = y
 
 class MainScreen:
-    def __init__(self, width, height, title) -> None:
+    def __init__(self, width, height, title, font) -> None:
         self.width = width
         self.height = height
         self.title = title
 
+        self.fontSystem = pygame.font.SysFont(font, 30)
         self.screen = pygame.display.set_mode((width, height))
 
     def img_scaler(self, img, factor):
         size = round(img.get_width() * factor), round(img.get_height()* factor)
         return pygame.transform.scale(img, size)
+    
+    def render_text(self, text, x, y):
+        text = self.fontSystem.render(text, True, "white")
+        self.screen.blit(text, (x, y))
     
 
     def wrap_around(self, objects):
@@ -142,11 +147,14 @@ class ParticleSystem:
 
 
 class Rocked(Entity):
-    def __init__(self, x, y, image, size, acceleration, rotation_velocity, max_velocity, brake_force) -> None:
+    def __init__(self, x, y, image, size, acceleration, rotation_velocity, max_velocity, brake_force, colliderR) -> None:
         self.rotation_velocity = rotation_velocity;
         self.acceleration = acceleration
         self.max_velocity = max_velocity
         self.brake_force = brake_force
+        self.colliderR = colliderR
+
+        self.coins = 0
 
         self.smokeRange = gradient_color("white", "#181818", 60)
         self.exhaustRange = gradient_color("red", "yellow", 60)
@@ -185,6 +193,12 @@ class Rocked(Entity):
 
         self.draw_rocked()
         self.move()
+
+    def get_rocked_center(self):
+        center_x = self.pos.x + self.image.get_rect().w // 2
+        center_y = self.pos.y + self.image.get_rect().h // 2
+        return (center_x, center_y)
+
 
     def rot_form_origin(self, x_offset, y_offset):
         angle_radians = math.radians(self.angle)
@@ -257,8 +271,11 @@ class CoinSystem:
 
     def update(self, rocked):
         for coin in self.coins:
-            if (math.sqrt(math.pow(rocked.x - coin.x, 2) + math.pow(rocked.y - coin.y, 2)) < coin.radius):
-                print("Coinnned")
+            player_x, player_y = rocked.get_rocked_center()
+            if (math.sqrt(math.pow(player_x - coin.x, 2) + math.pow(player_y - coin.y, 2)) < rocked.colliderR):
+                rocked.coins += 1
+                self.coins.remove(coin)
+                self.spawn_coin()
 
             coin.draw()
 
@@ -269,8 +286,9 @@ HEIGHT = 720
 FPS = 60
 
 pygame.init()
+pygame.font.init()
 
-main = MainScreen(WIDTH, HEIGHT, "Astro")
+main = MainScreen(WIDTH, HEIGHT, "Astro", "Iosevka")
 
 clock = pygame.time.Clock()
 
@@ -279,11 +297,12 @@ delta_time = 0
 
 
 rocked_image = main.img_scaler(pygame.image.load("./spaceship.png"), .2)
-player = Rocked(WIDTH//2, HEIGHT//2, rocked_image, 40, .4, 4, 10, .9)
+player = Rocked(WIDTH//2, HEIGHT//2, rocked_image, 40, .4, 4, 10, .9, 30)
 
 
 ps = ParticleSystem()
 cs = CoinSystem()
+
 
 
 while running:
@@ -299,6 +318,10 @@ while running:
     main.wrap_around([player])
 
     cs.update(player)
+
+    main.render_text("Score: " + str(player.coins), 10, 10)
+
+    # pygame.draw.circle(main.screen, "green", (player.get_rocked_center()[0], player.get_rocked_center()[1]), 30)
 
     pygame.display.flip()
     delta_time = clock.tick(FPS) / 1000
