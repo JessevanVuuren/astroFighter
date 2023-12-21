@@ -29,12 +29,17 @@ class Entity:
         self.x = x
         self.y = y
 
-class MainScreen:
-    def __init__(self, width, height, title, font) -> None:
+class MainGame:
+    def __init__(self, width, height, fps, title, font) -> None:
         self.width = width
         self.height = height
         self.title = title
+        self.fps = fps
 
+        pygame.init()
+        pygame.font.init()
+
+        self.clock = pygame.time.Clock()
         self.fontSystem = pygame.font.SysFont(font, 30)
         self.screen = pygame.display.set_mode((width, height))
 
@@ -45,7 +50,13 @@ class MainScreen:
     def render_text(self, text, x, y):
         text = self.fontSystem.render(text, True, "white")
         self.screen.blit(text, (x, y))
+
+
+    def update_screen(self):
+        pygame.display.flip()
     
+    def get_delta_time(self):
+        return main.clock.tick(self.fps) / 1000
 
     def wrap_around(self, objects):
         for object in objects:
@@ -285,19 +296,16 @@ WIDTH = 1280
 HEIGHT = 720
 FPS = 60
 
-pygame.init()
-pygame.font.init()
 
-main = MainScreen(WIDTH, HEIGHT, "Astro", "Iosevka")
+main = MainGame(WIDTH, HEIGHT, FPS, "Astro", "Iosevka")
 
-clock = pygame.time.Clock()
 
 running = True
 delta_time = 0
 
 
 rocked_image = main.img_scaler(pygame.image.load("./spaceship.png"), .2)
-player = Rocked(WIDTH//2, HEIGHT//2, rocked_image, 40, .4, 4, 10, .9, 30)
+player = Rocked(WIDTH//2, HEIGHT//2, rocked_image, 40, .4, 4, 10, .9, 35)
 
 
 ps = ParticleSystem()
@@ -321,10 +329,7 @@ while running:
 
     main.render_text("Score: " + str(player.coins), 10, 10)
 
-    # pygame.draw.circle(main.screen, "green", (player.get_rocked_center()[0], player.get_rocked_center()[1]), 30)
-
-    pygame.display.flip()
-    delta_time = clock.tick(FPS) / 1000
-    # print(clock.get_fps())
+    main.update_screen()
+    delta_time = main.get_delta_time()
 
 pygame.quit()
